@@ -88,7 +88,7 @@ class XPCByteStream:
 
     def pop_double(self):
         double_bytes, self.data = self.data[:8], self.data[8:]
-        return struct.unpack(STRUCT_ENDIAN + "d", double_bytes)[0]
+        return struct.unpack(f"{STRUCT_ENDIAN}d", double_bytes)[0]
 
     def pop_aligned_string_len(self, length):
         aligned_length = round_up(length, 4)
@@ -137,11 +137,11 @@ class XPCByteStream:
             XPC_FILE_TRANSFER:      XPC_File_Transfer
         }
         # yapf: enable
-        obj = switcher.get(type_, None)
+        obj = switcher.get(type_)
         if not obj:
             print("Couldn't identify a type.")
             return None
-        elif not "pretty_string" in dir(obj):  # unimplemented obj
+        elif "pretty_string" not in dir(obj):  # unimplemented obj
             print(
                 "Attempting to decode unimplemented type \"%s\". This will fail."
                 % (obj.__name__))
@@ -261,7 +261,8 @@ class XPC_Double:
 
     def to_bytes(self):
         return XPC_DOUBLE.to_bytes(4, ENDIANNESS) + struct.pack(
-            STRUCT_ENDIAN + "d", self.value)
+            f"{STRUCT_ENDIAN}d", self.value
+        )
 
 
 class XPC_Pointer:
@@ -430,7 +431,7 @@ class XPC_Array:
             array_stream = arg.pop_stream(length)
             num_entries = array_stream.pop_uint32()
             self.value = []
-            for i in range(num_entries):
+            for _ in range(num_entries):
                 assert len(array_stream)
                 xpc_obj_class = array_stream.next_object_class()
                 if not xpc_obj_class:  # if None was returned
@@ -482,7 +483,7 @@ class XPC_Dictionary:
             dict_stream = arg.pop_stream(length)
             num_entries = dict_stream.pop_uint32()
             self.value = {}
-            for i in range(num_entries):
+            for _ in range(num_entries):
                 assert len(dict_stream)
                 key = dict_stream.pop_dict_key()
                 xpc_obj_class = dict_stream.next_object_class()
@@ -543,7 +544,7 @@ class XPC_Error:
             dict_stream = arg.pop_stream(length)
             num_entries = dict_stream.pop_uint32()
             self.value = {}
-            for i in range(num_entries):
+            for _ in range(num_entries):
                 assert len(dict_stream)
                 key = dict_stream.pop_dict_key()
                 xpc_obj_class = dict_stream.next_object_class()

@@ -56,9 +56,7 @@ class RequestReceived(Event):
         self.priority_updated = None
 
     def __repr__(self):
-        return "<RequestReceived stream_id:%s, headers:%s>" % (
-            self.stream_id, self.headers
-        )
+        return f"<RequestReceived stream_id:{self.stream_id}, headers:{self.headers}>"
 
 
 class ResponseReceived(Event):
@@ -96,9 +94,7 @@ class ResponseReceived(Event):
         self.priority_updated = None
 
     def __repr__(self):
-        return "<ResponseReceived stream_id:%s, headers:%s>" % (
-            self.stream_id, self.headers
-        )
+        return f"<ResponseReceived stream_id:{self.stream_id}, headers:{self.headers}>"
 
 
 class TrailersReceived(Event):
@@ -138,9 +134,7 @@ class TrailersReceived(Event):
         self.priority_updated = None
 
     def __repr__(self):
-        return "<TrailersReceived stream_id:%s, headers:%s>" % (
-            self.stream_id, self.headers
-        )
+        return f"<TrailersReceived stream_id:{self.stream_id}, headers:{self.headers}>"
 
 
 class _HeadersSent(Event):
@@ -237,9 +231,7 @@ class InformationalResponseReceived(Event):
         self.priority_updated = None
 
     def __repr__(self):
-        return "<InformationalResponseReceived stream_id:%s, headers:%s>" % (
-            self.stream_id, self.headers
-        )
+        return f"<InformationalResponseReceived stream_id:{self.stream_id}, headers:{self.headers}>"
 
 
 class DataReceived(Event):
@@ -300,9 +292,7 @@ class WindowUpdated(Event):
         self.delta = None
 
     def __repr__(self):
-        return "<WindowUpdated stream_id:%s, delta:%s>" % (
-            self.stream_id, self.delta
-        )
+        return f"<WindowUpdated stream_id:{self.stream_id}, delta:{self.delta}>"
 
 
 class RemoteSettingsChanged(Event):
@@ -369,9 +359,7 @@ class PingReceived(Event):
         self.ping_data = None
 
     def __repr__(self):
-        return "<PingReceived ping_data:%s>" % (
-            _bytes_representation(self.ping_data),
-        )
+        return f"<PingReceived ping_data:{_bytes_representation(self.ping_data)}>"
 
 
 class PingAcknowledged(Event):
@@ -385,9 +373,7 @@ class PingAcknowledged(Event):
         self.ping_data = None
 
     def __repr__(self):
-        return "<PingAckReceived ping_data:%s>" % (
-            _bytes_representation(self.ping_data),
-        )
+        return f"<PingAckReceived ping_data:{_bytes_representation(self.ping_data)}>"
 
 
 class PingAckReceived(PingAcknowledged):
@@ -412,7 +398,7 @@ class StreamEnded(Event):
         self.stream_id = None
 
     def __repr__(self):
-        return "<StreamEnded stream_id:%s>" % self.stream_id
+        return f"<StreamEnded stream_id:{self.stream_id}>"
 
 
 class StreamReset(Event):
@@ -437,9 +423,7 @@ class StreamReset(Event):
         self.remote_reset = True
 
     def __repr__(self):
-        return "<StreamReset stream_id:%s, error_code:%s, remote_reset:%s>" % (
-            self.stream_id, self.error_code, self.remote_reset
-        )
+        return f"<StreamReset stream_id:{self.stream_id}, error_code:{self.error_code}, remote_reset:{self.remote_reset}>"
 
 
 class PushedStreamReceived(Event):
@@ -595,12 +579,7 @@ class AlternativeServiceAvailable(Event):
         self.field_value = None
 
     def __repr__(self):
-        return (
-            "<AlternativeServiceAvailable origin:%s, field_value:%s>" % (
-                self.origin.decode('utf-8', 'ignore'),
-                self.field_value.decode('utf-8', 'ignore'),
-            )
-        )
+        return f"<AlternativeServiceAvailable origin:{self.origin.decode('utf-8', 'ignore')}, field_value:{self.field_value.decode('utf-8', 'ignore')}>"
 
 
 class UnknownFrameReceived(Event):

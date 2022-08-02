@@ -115,7 +115,7 @@ class SysdiagnoseProtocol(Protocol):
 
         header = XpcWrapper(XpcWrapper.magic_bytes, 0x400001, 0, msg_id)
         header_bytes = bytes(header)
-        print("Sending " + str(header))
+        print(f"Sending {str(header)}")
         self.h2conn.send_data(stream_idx, header_bytes)
 
     def openStreamForFileTX(self, stream_idx, msg_id):
@@ -124,7 +124,7 @@ class SysdiagnoseProtocol(Protocol):
         # no payload
         header = XpcWrapper(XpcWrapper.magic_bytes, 0x200001, 0, msg_id)
         header_bytes = bytes(header)
-        print("Sending " + str(header))
+        print(f"Sending {str(header)}")
         self.h2conn.send_data(stream_idx, header_bytes)
 
     def openStreamDict(self, stream_idx, msg_id):
@@ -137,7 +137,7 @@ class SysdiagnoseProtocol(Protocol):
                             msg_id)
         header_bytes = bytes(header)
         payload = header_bytes + xpc_bytes
-        print("Sending " + str(header) + "\n" + str(xpc_obj))
+        print(f"Sending {str(header)}" + "\n" + str(xpc_obj))
         self.h2conn.send_data(stream_idx, payload)
 
     # this is where we will get a callback each time our connection
@@ -161,12 +161,7 @@ class SysdiagnoseProtocol(Protocol):
                 reactor.stop()
                 raise RuntimeError("Stream reset: %d" % event.error_code)
 
-        # the h2 library works by "sending" data on the h2conn, which
-        # is really just a state machine.
-        # data_to_send() returns the data that should be sent,
-        # along with all the proper HTTP/2 packets
-        data = self.h2conn.data_to_send()
-        if data:
+        if data := self.h2conn.data_to_send():
             self.transport.write(data)
 
     def handleData(self, event):
@@ -187,12 +182,12 @@ class SysdiagnoseProtocol(Protocol):
                 # this, but I don't think we need to do so right now, so we're just
                 # gonna ignore it
                 xpc_wrapper, data = XpcWrapper.from_bytes(data)
-                if xpc_wrapper == None:
+                if xpc_wrapper is None:
                     return
                 xpc_stream = XPCByteStream(data)
                 xpc_obj = XPC_Root(xpc_stream)
                 response = xpc_obj.value.value.get("RESPONSE_TYPE", None)
-                if response == None:
+                if response is None:
                     return
                 print("Received XPC object on stream %d:" % stream_id)
                 print(xpc_wrapper)
@@ -207,9 +202,9 @@ class SysdiagnoseProtocol(Protocol):
                 # we need to open stream 2 and then send an empty reply with the
                 # correct msg_id so the data transfer can start
                 xpc_wrapper, data = XpcWrapper.from_bytes(data)
-                if xpc_wrapper == None:
+                if xpc_wrapper is None:
                     return
-                if not xpc_wrapper.flags == 0x100001:
+                if xpc_wrapper.flags != 0x100001:
                     return
                 print("Received XPC object on stream %d:" % stream_id)
                 print(xpc_wrapper)
@@ -273,15 +268,16 @@ class SysdiagnoseProtocol(Protocol):
 
 
 def getXPCObject():
-    # yapf: disable
-    xpc_obj = XPC_Root(
-        XPC_Dictionary({
-            "REQUEST_TYPE": XPC_Uint64(1),
-            #"rootPath": XPC_String("/"),
-            "archiveName": XPC_String("testArchiveName.tar.gz"),
-        }))
     # yapf: enable
-    return xpc_obj
+    return XPC_Root(
+        XPC_Dictionary(
+            {
+                "REQUEST_TYPE": XPC_Uint64(1),
+                # "rootPath": XPC_String("/"),
+                "archiveName": XPC_String("testArchiveName.tar.gz"),
+            }
+        )
+    )
 
 
 def main():

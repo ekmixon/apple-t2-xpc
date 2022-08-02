@@ -138,8 +138,7 @@ class Settings(collections.MutableMapping):
         }
         if initial_values is not None:
             for key, value in initial_values.items():
-                invalid = _validate_setting(key, value)
-                if invalid:
+                if invalid := _validate_setting(key, value):
                     raise InvalidSettingsValueError(
                         "Setting %d has invalid value %d" % (key, value),
                         error_code=invalid
@@ -255,8 +254,7 @@ class Settings(collections.MutableMapping):
         return val
 
     def __setitem__(self, key, value):
-        invalid = _validate_setting(key, value)
-        if invalid:
+        if invalid := _validate_setting(key, value):
             raise InvalidSettingsValueError(
                 "Setting %d has invalid value %d" % (key, value),
                 error_code=invalid
@@ -286,10 +284,7 @@ class Settings(collections.MutableMapping):
             return NotImplemented
 
     def __ne__(self, other):
-        if isinstance(other, Settings):
-            return not self == other
-        else:
-            return NotImplemented
+        return not self == other if isinstance(other, Settings) else NotImplemented
 
 
 def _validate_setting(setting, value):

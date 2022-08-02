@@ -45,7 +45,7 @@ class MBIM:
             self.ndp_next_idx = s.pop_uint16()
             max_ndps = (self.ndp_len - 8) // 4
             # ^^^ using // because we want to truncate
-            for i in range(max_ndps):
+            for _ in range(max_ndps):
                 dg_idx = s.pop_uint16()
                 dg_len = s.pop_uint16()
                 if dg_idx == 0 and dg_len == 0:
@@ -58,8 +58,7 @@ class MBIM:
             print("MBIM construction is not yet implemented.")
 
     def __iter__(self):
-        for dg in self.dgs:
-            yield dg
+        yield from self.dgs
 
     def __len__(self):
         return len(self.dgs)

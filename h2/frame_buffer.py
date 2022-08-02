@@ -67,7 +67,7 @@ class FrameBuffer(object):
             frame, length = Frame.parse_frame_header(data[:9])
         except ValueError as e:
             # The frame header is invalid. This is a ProtocolError
-            raise ProtocolError("Invalid frame header received: %s" % str(e))
+            raise ProtocolError(f"Invalid frame header received: {str(e)}")
 
         return frame, length
 

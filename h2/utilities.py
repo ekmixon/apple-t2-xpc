@@ -93,10 +93,7 @@ def extract_method_header(headers):
     """
     for k, v in headers:
         if k in (b':method', u':method'):
-            if not isinstance(v, bytes):
-                return v.encode('utf-8')
-            else:
-                return v
+            return v if isinstance(v, bytes) else v.encode('utf-8')
 
 
 def is_informational_response(headers):
@@ -169,14 +166,14 @@ def authority_from_headers(headers):
     :returns: The value of the authority header, or ``None``.
     :rtype: ``bytes`` or ``None``.
     """
-    for n, v in headers:
-        # This gets run against headers that come both from HPACK and from the
-        # user, so we may have unicode floating around in here. We only want
-        # bytes.
-        if n in (b':authority', u':authority'):
-            return v.encode('utf-8') if not isinstance(v, bytes) else v
-
-    return None
+    return next(
+        (
+            v if isinstance(v, bytes) else v.encode('utf-8')
+            for n, v in headers
+            if n in (b':authority', u':authority')
+        ),
+        None,
+    )
 
 
 # Flags used by the validate_headers pipeline to determine which checks
@@ -233,8 +230,7 @@ def _reject_uppercase_header_fields(headers, hdr_validation_flags):
     """
     for header in headers:
         if UPPER_RE.search(header[0]):
-            raise ProtocolError(
-                "Received uppercase header name %s." % header[0])
+            raise ProtocolError(f"Received uppercase header name {header[0]}.")
         yield header
 
 
@@ -266,12 +262,11 @@ def _reject_te(headers, hdr_validation_flags):
     its value is anything other than "trailers".
     """
     for header in headers:
-        if header[0] in (b'te', u'te'):
-            if header[1].lower() not in (b'trailers', u'trailers'):
-                raise ProtocolError(
-                    "Invalid value for Transfer-Encoding header: %s" %
-                    header[1]
-                )
+        if header[0] in (b'te', u'te') and header[1].lower() not in (
+            b'trailers',
+            u'trailers',
+        ):
+            raise ProtocolError(f"Invalid value for Transfer-Encoding header: {header[1]}")
 
         yield header
 
@@ -283,9 +278,7 @@ def _reject_connection_header(headers, hdr_validation_flags):
     """
     for header in headers:
         if header[0] in CONNECTION_HEADERS:
-            raise ProtocolError(
-                "Connection-specific header field present: %s." % header[0]
-            )
+            raise ProtocolError(f"Connection-specific header field present: {header[0]}.")
 
         yield header
 
@@ -307,10 +300,8 @@ def _assert_header_in_set(string_header, bytes_header, header_set):
     the header name is present. Raises a Protocol error with the appropriate
     error if it's missing.
     """
-    if not (string_header in header_set or bytes_header in header_set):
-        raise ProtocolError(
-            "Header block missing mandatory %s header" % string_header
-        )
+    if string_header not in header_set and bytes_header not in header_set:
+        raise ProtocolError(f"Header block missing mandatory {string_header} header")
 
 
 def _reject_pseudo_header_fields(headers, hdr_validation_flags):
@@ -327,22 +318,18 @@ def _reject_pseudo_header_fields(headers, hdr_validation_flags):
     for header in headers:
         if _custom_startswith(header[0], b':', u':'):
             if header[0] in seen_pseudo_header_fields:
-                raise ProtocolError(
-                    "Received duplicate pseudo-header field %s" % header[0]
-                )
+                raise ProtocolError(f"Received duplicate pseudo-header field {header[0]}")
 
             seen_pseudo_header_fields.add(header[0])
 
             if seen_regular_header:
                 raise ProtocolError(
-                    "Received pseudo-header field out of sequence: %s" %
-                    header[0]
+                    f"Received pseudo-header field out of sequence: {header[0]}"
                 )
 
+
             if header[0] not in _ALLOWED_PSEUDO_HEADER_FIELDS:
-                raise ProtocolError(
-                    "Received custom pseudo-header field %s" % header[0]
-                )
+                raise ProtocolError(f"Received custom pseudo-header field {header[0]}")
 
         else:
             seen_regular_header = True
@@ -363,9 +350,7 @@ def _check_pseudo_header_field_acceptability(pseudo_headers,
     """
     # Pseudo-header fields MUST NOT appear in trailers - RFC 7540 § 8.1.2.1
     if hdr_validation_flags.is_trailer and pseudo_headers:
-        raise ProtocolError(
-            "Received pseudo-header in trailer %s" % pseudo_headers
-        )
+        raise ProtocolError(f"Received pseudo-header in trailer {pseudo_headers}")
 
     # If ':status' pseudo-header is not there in a response header, reject it.
     # Similarly, if ':path', ':method', or ':scheme' are not there in a request
@@ -375,24 +360,20 @@ def _check_pseudo_header_field_acceptability(pseudo_headers,
     # https://tools.ietf.org/html/rfc7540#section-8.1.2.4
     if hdr_validation_flags.is_response_header:
         _assert_header_in_set(u':status', b':status', pseudo_headers)
-        invalid_response_headers = pseudo_headers & _REQUEST_ONLY_HEADERS
-        if invalid_response_headers:
+        if invalid_response_headers := pseudo_headers & _REQUEST_ONLY_HEADERS:
             raise ProtocolError(
-                "Encountered request-only headers %s" %
-                invalid_response_headers
+                f"Encountered request-only headers {invalid_response_headers}"
             )
-    elif (not hdr_validation_flags.is_response_header and
-          not hdr_validation_flags.is_trailer):
+
+    elif not hdr_validation_flags.is_trailer:
         # This is a request, so we need to have seen :path, :method, and
         # :scheme.
         _assert_header_in_set(u':path', b':path', pseudo_headers)
         _assert_header_in_set(u':method', b':method', pseudo_headers)
         _assert_header_in_set(u':scheme', b':scheme', pseudo_headers)
-        invalid_request_headers = pseudo_headers & _RESPONSE_ONLY_HEADERS
-        if invalid_request_headers:
+        if invalid_request_headers := pseudo_headers & _RESPONSE_ONLY_HEADERS:
             raise ProtocolError(
-                "Encountered response-only headers %s" %
-                invalid_request_headers
+                f"Encountered response-only headers {invalid_request_headers}"
             )
 
 
@@ -437,13 +418,16 @@ def _validate_host_authority_header(headers):
         )
 
     # If we receive both headers, they should definitely match.
-    if authority_present and host_present:
-        if authority_header_val != host_header_val:
-            raise ProtocolError(
-                "Request header block has mismatched :authority and "
-                "Host headers: %r / %r"
-                % (authority_header_val, host_header_val)
-            )
+    if (
+        authority_present
+        and host_present
+        and authority_header_val != host_header_val
+    ):
+        raise ProtocolError(
+            "Request header block has mismatched :authority and "
+            "Host headers: %r / %r"
+            % (authority_header_val, host_header_val)
+        )
 
 
 def _check_host_authority_header(headers, hdr_validation_flags):
@@ -452,14 +436,10 @@ def _check_host_authority_header(headers, hdr_validation_flags):
     :authority or a Host header, or if a header block contains both fields,
     but their values do not match.
     """
-    # We only expect to see :authority and Host headers on request header
-    # blocks that aren't trailers, so skip this validation if this is a
-    # response header or we're looking at trailer blocks.
-    skip_validation = (
-        hdr_validation_flags.is_response_header or
-        hdr_validation_flags.is_trailer
-    )
-    if skip_validation:
+    if skip_validation := (
+        hdr_validation_flags.is_response_header
+        or hdr_validation_flags.is_trailer
+    ):
         return headers
 
     return _validate_host_authority_header(headers)
@@ -472,9 +452,8 @@ def _check_path_header(headers, hdr_validation_flags):
     """
     def inner():
         for header in headers:
-            if header[0] in (b':path', u':path'):
-                if not header[1]:
-                    raise ProtocolError("An empty :path header is forbidden")
+            if header[0] in (b':path', u':path') and not header[1]:
+                raise ProtocolError("An empty :path header is forbidden")
 
             yield header
 
@@ -485,10 +464,7 @@ def _check_path_header(headers, hdr_validation_flags):
         hdr_validation_flags.is_response_header or
         hdr_validation_flags.is_trailer
     )
-    if skip_validation:
-        return headers
-    else:
-        return inner()
+    return headers if skip_validation else inner()
 
 
 def _lowercase_header_names(headers, hdr_validation_flags):
@@ -533,14 +509,10 @@ def _check_sent_host_authority_header(headers, hdr_validation_flags):
     that does not contain an :authority or a Host header, or if
     the header block contains both fields, but their values do not match.
     """
-    # We only expect to see :authority and Host headers on request header
-    # blocks that aren't trailers, so skip this validation if this is a
-    # response header or we're looking at trailer blocks.
-    skip_validation = (
-        hdr_validation_flags.is_response_header or
-        hdr_validation_flags.is_trailer
-    )
-    if skip_validation:
+    if skip_validation := (
+        hdr_validation_flags.is_response_header
+        or hdr_validation_flags.is_trailer
+    ):
         return headers
 
     return _validate_host_authority_header(headers)

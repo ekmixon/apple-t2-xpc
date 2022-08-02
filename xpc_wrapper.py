@@ -14,19 +14,19 @@ class XpcWrapper:
 
     @classmethod
     def from_bytes(cls, data):
-        if len(data) >= XpcWrapper.hdr_len and \
-                XpcWrapper.magic_bytes == int.from_bytes(data[:4], 'little'):
-            try:
-                wrapper = XpcWrapper(*struct.unpack(XpcWrapper.format_string,
-                                                    data[:XpcWrapper.hdr_len]))
-            except AttributeError:  # happens with malformed/cropped packet
-                print("Error: Frame: " + str(frame.summary()) + " Bytes: " +
-                      str(frame))
-                return None, data
-            return wrapper, data[XpcWrapper.hdr_len:]
-
-        else:
+        if len(
+            data
+        ) < XpcWrapper.hdr_len or XpcWrapper.magic_bytes != int.from_bytes(
+            data[:4], 'little'
+        ):
             return None, data
+        try:
+            wrapper = XpcWrapper(*struct.unpack(XpcWrapper.format_string,
+                                                data[:XpcWrapper.hdr_len]))
+        except AttributeError:  # happens with malformed/cropped packet
+            print((f"Error: Frame: {str(frame.summary())} Bytes: " + str(frame)))
+            return None, data
+        return wrapper, data[XpcWrapper.hdr_len:]
 
     def __repr__(self):
         return "Magic: 0x{:x}, Flags: 0b{:032b}, BodyLength: 0x{:x}, MessageId: 0x{:x}".format(

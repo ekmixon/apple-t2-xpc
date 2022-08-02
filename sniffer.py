@@ -59,9 +59,8 @@ def process_packet(p):
     print("New MBIM packet with %d Ethernet frames inside" % len(m))
     for packet in m:
         #if DEBUG: packet.show()
-        if packet.haslayer(TCP):
-            if packet[TCP].payload:
-                process_tcp(packet)
+        if packet.haslayer(TCP) and packet[TCP].payload:
+            process_tcp(packet)
 
 
 def process_tcp(pkt):
@@ -86,9 +85,7 @@ def process_tcp(pkt):
     stream_id = create_stream_id(net_pkt.src, net_pkt.dst, tcp_pkt.sport,
                                  tcp_pkt.dport)
     tcp_stream = tcp_streams.setdefault(stream_id, TCPStream(stream_id))
-    # ^^^ like dict.get, but creates new entry if it doesn't exist
-    in_order = tcp_stream.add(tcp_pkt)
-    if in_order:  # if we just added something in order
+    if in_order := tcp_stream.add(tcp_pkt):
         handle_stream(tcp_stream)
     #if PAUSE: input()
 
@@ -109,7 +106,7 @@ class TCPStream:
         # ^^^ {seq: payload, seq: payload, ...}
 
     def __repr__(self):
-        return "Stream<%s>" % self.key
+        return f"Stream<{self.key}>"
 
     def __len__(self):
         return len(self.data)
@@ -134,13 +131,13 @@ class TCPStream:
             self.seq = tcp_pkt.seq
         # grab payload bytes
         data = bytes(tcp_pkt.payload)
-        data_len = len(data)
         seq_idx = tcp_pkt.seq - self.seq
         if len(self.data) < seq_idx:
             # if this data is out of order and needs to be inserted later
             self.later[seq_idx] = data
             return False
         else:
+            data_len = len(data)
             # if this data is in order (has a place to be inserted)
             self.data[seq_idx:seq_idx + data_len] = data
             # check if there are any waiting data segments to add
@@ -246,8 +243,7 @@ def handle_stream(tcp_stream):
                 try:
                     wrapper, xpc_payload = XpcWrapper.from_bytes(frame.data)
                 except AttributeError:  # happens with malformed/cropped packet
-                    print("Error: Frame: " + str(frame.summary()) +
-                          " Bytes: " + str(frame))
+                    print((f"Error: Frame: {str(frame.summary())}" + " Bytes: ") + str(frame))
                 # if we have a payload that matches the XPC header we're expecting:
                 print(
                     "New XPC Packet {}->{} on HTTP/2 stream {:d} TCP port {:d}"
@@ -264,7 +260,6 @@ def handle_stream(tcp_stream):
                     print(x)
                 else:
                     print("No Payload.")
-                if PAUSE: input()
             else:  # if we don't know what this payload is
                 print(
                     "New Data frame {}->{} on HTTP/2 stream {:d} TCP port {:d}"
@@ -276,7 +271,8 @@ def handle_stream(tcp_stream):
                 hexdump(frame.data[:64])
                 if len(frame.data) > 64:
                     print("... %d bytes" % len(frame.data))
-                if PAUSE: input()
+
+            if PAUSE: input()
 
 
 def create_packet():

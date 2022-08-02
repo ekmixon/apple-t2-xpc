@@ -5,6 +5,7 @@ h2/stream
 
 An implementation of a HTTP/2 stream.
 """
+
 from enum import Enum, IntEnum
 from hpack import HeaderTuple
 from hyperframe.frame import (
@@ -74,7 +75,7 @@ class StreamClosedBy(Enum):
 # this is that we potentially check whether a stream in a given state is open
 # quite frequently: given that we check so often, we should do so in the
 # fastest and most performant way possible.
-STREAM_OPEN = [False for _ in range(0, len(StreamState))]
+STREAM_OPEN = [False for _ in range(len(StreamState))]
 STREAM_OPEN[StreamState.OPEN] = True
 STREAM_OPEN[StreamState.HALF_CLOSED_LOCAL] = True
 STREAM_OPEN[StreamState.HALF_CLOSED_REMOTE] = True
@@ -118,9 +119,7 @@ class H2StreamStateMachine(object):
         except KeyError:
             old_state = self.state
             self.state = StreamState.CLOSED
-            raise ProtocolError(
-                "Invalid input %s in state %s" % (input_, old_state)
-            )
+            raise ProtocolError(f"Invalid input {input_} in state {old_state}")
         else:
             previous_state = self.state
             self.state = target_state
@@ -471,12 +470,7 @@ class H2StreamStateMachine(object):
         # If we've received the response headers from the server they can't
         # guarantee we still have any state around. Other implementations
         # (like nghttp2) ignore ALTSVC in this state, so we will too.
-        if self.headers_received:
-            return []
-
-        # Otherwise, this is a sensible enough frame to have received. Return
-        # the event and let it get populated.
-        return [AlternativeServiceAvailable()]
+        return [] if self.headers_received else [AlternativeServiceAvailable()]
 
     def send_alt_svc(self, previous_state):
         """
@@ -935,11 +929,9 @@ class H2Stream(object):
         ppf = PushPromiseFrame(self.stream_id)
         ppf.promised_stream_id = related_stream_id
         hdr_validation_flags = self._build_hdr_validation_flags(events)
-        frames = self._build_headers_frames(
+        return self._build_headers_frames(
             headers, encoder, ppf, hdr_validation_flags
         )
-
-        return frames
 
     def locally_pushed(self):
         """
@@ -1081,9 +1073,8 @@ class H2Stream(object):
 
         self._initialize_content_length(headers)
 
-        if isinstance(events[0], TrailersReceived):
-            if not end_stream:
-                raise ProtocolError("Trailers must have END_STREAM set")
+        if isinstance(events[0], TrailersReceived) and not end_stream:
+            raise ProtocolError("Trailers must have END_STREAM set")
 
         hdr_validation_flags = self._build_hdr_validation_flags(events)
         events[0].headers = self._process_received_headers(
@@ -1227,10 +1218,9 @@ class H2Stream(object):
             "Acknowledge received data with size %d on %r",
             acknowledged_size, self
         )
-        increment = self._inbound_window_manager.process_bytes(
+        if increment := self._inbound_window_manager.process_bytes(
             acknowledged_size
-        )
-        if increment:
+        ):
             f = WindowUpdateFrame(self.stream_id)
             f.window_increment = increment
             return [f]
@@ -1298,10 +1288,8 @@ class H2Stream(object):
         else:
             header_blocks = [b""]
 
-        frames = []
         first_frame.data = header_blocks[0]
-        frames.append(first_frame)
-
+        frames = [first_frame]
         for block in header_blocks[1:]:
             cf = ContinuationFrame(self.stream_id)
             cf.data = block
@@ -1352,9 +1340,7 @@ class H2Stream(object):
                 try:
                     self._expected_content_length = int(v, 10)
                 except ValueError:
-                    raise ProtocolError(
-                        "Invalid content-length header: %s" % v
-                    )
+                    raise ProtocolError(f"Invalid content-length header: {v}")
 
                 return
 

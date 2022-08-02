@@ -225,15 +225,10 @@ class H2ConnectionStateMachine(object):
         except KeyError:
             old_state = self.state
             self.state = ConnectionState.CLOSED
-            raise ProtocolError(
-                "Invalid input %s in state %s" % (input_, old_state)
-            )
+            raise ProtocolError(f"Invalid input {input_} in state {old_state}")
         else:
             self.state = target_state
-            if func is not None:  # pragma: no cover
-                return func()
-
-            return []
+            return func() if func is not None else []
 
 
 class H2Connection(object):
@@ -1316,8 +1311,7 @@ class H2Connection(object):
         frames = []
 
         conn_manager = self._inbound_flow_control_window_manager
-        conn_increment = conn_manager.process_bytes(acknowledged_size)
-        if conn_increment:
+        if conn_increment := conn_manager.process_bytes(acknowledged_size):
             f = WindowUpdateFrame(0)
             f.window_increment = conn_increment
             frames.append(f)
@@ -1355,11 +1349,11 @@ class H2Connection(object):
         if amt is None:
             data = self._data_to_send
             self._data_to_send = b''
-            return data
         else:
             data = self._data_to_send[:amt]
             self._data_to_send = self._data_to_send[amt:]
-            return data
+
+        return data
 
     def clear_outbound_data_buffer(self):
         """
@@ -1485,16 +1479,12 @@ class H2Connection(object):
             # I don't love using __class__ here, maybe reconsider it.
             frames, events = self._frame_dispatch_table[frame.__class__](frame)
         except StreamClosedError as e:
-            # If the stream was closed by RST_STREAM, we just send a RST_STREAM
-            # to the remote peer. Otherwise, this is a connection error, and so
-            # we will re-raise to trigger one.
-            if self._stream_is_closed_by_reset(e.stream_id):
-                f = RstStreamFrame(e.stream_id)
-                f.error_code = e.error_code
-                self._prepare_for_sending([f])
-                events = e._events
-            else:
+            if not self._stream_is_closed_by_reset(e.stream_id):
                 raise
+            f = RstStreamFrame(e.stream_id)
+            f.error_code = e.error_code
+            self._prepare_for_sending([f])
+            events = e._events
         except StreamIDTooLowError as e:
             # The stream ID seems invalid. This may happen when the closed
             # stream has been cleaned up, or when the remote peer has opened a
@@ -1801,8 +1791,7 @@ class H2Connection(object):
         new_event = ConnectionTerminated()
         new_event.error_code = _error_code_from_int(frame.error_code)
         new_event.last_stream_id = frame.last_stream_id
-        new_event.additional_data = (frame.additional_data
-                                     if frame.additional_data else None)
+        new_event.additional_data = frame.additional_data or None
         events.append(new_event)
 
         return [], events
@@ -2004,9 +1993,9 @@ def _decode_headers(decoder, encoded_header_block):
         # This is a symptom of a HPACK bomb attack: the user has
         # disregarded our requirements on how large a header block we'll
         # accept.
-        raise DenialOfServiceError("Oversized header block: %s" % e)
+        raise DenialOfServiceError(f"Oversized header block: {e}")
     except (HPACKError, IndexError, TypeError, UnicodeDecodeError) as e:
         # We should only need HPACKError here, but versions of HPACK older
         # than 2.1.0 throw all three others as well. For maximum
         # compatibility, catch all of them.
-        raise ProtocolError("Error decoding header block: %s" % e)
+        raise ProtocolError(f"Error decoding header block: {e}")
